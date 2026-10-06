@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Endüstriyel WWTP / ETP SCADA Simülatörü</title>
+  <style>
+    :root {
+      --bg-dark: #070b14;
+      --panel-bg: #0f172a;
+      --panel-border: #1e293b;
+      --accent-blue: #38bdf8;
+      --accent-green: #22c55e;
+      --accent-yellow: #f59e0b;
+      --accent-purple: #c084fc;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      min-height: 100vh;
+      touch-action: manipulation;
+    }
+    header {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+    header h1 { 
+      font-size: clamp(1rem, 4vw, 1.3rem); 
+      font-weight: 700; 
+      color: var(--accent-blue); 
+    }
+    .header-actions { 
+      display: flex; 
+      gap: 8px; 
+      align-items: center; 
+    }
+    .badge {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-online { background: rgba(34,197,94,0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-offline { background: rgba(239,68,68,0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+
+    .main-container {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Duyarlı Canvas Kapsayıcıları */
+    .canvas-box {
+      width: 100%;
+      background: #050811;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    #simCanvas { aspect-ratio: 1200 / 430; }
+    #trendCanvas { aspect-ratio: 1200 / 190; }
+
+    .trend-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .trend-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .trend-title {
+      font-size: 0.78rem; 
+      font-weight: 700; 
+      color: var(--accent-blue); 
+      text-transform: uppercase;
+    }
+    .trend-legends {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.72rem;
+      font-family: monospace;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-color { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* Dashboard & Kontroller */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .card h2 {
+      font-size: 0.84rem;
+      color: var(--accent-blue);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 6px;
+    }
+
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 12px;
+    }
+    .control-row label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .control-row label span.val { 
+      color: var(--text-main); 
+      font-weight: 600; 
+      font-family: monospace; 
+    }
+
+    /* Dokunmatik Dostu Slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 28px;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      margin-top: -8px;
+      box-shadow: 0 0 10px rgba(56,189,248,0.5);
+    }
+    input[type="range"]::-moz-range-thumb {
+      height: 24px;
+      width: 24px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      border: none;
+      box-shadow: 0 0 10px rgba(56,189,248,0.5);
+    }
+
+    /* Telemetri Kutuları */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-box {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 6px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-box .title { font-size: 0.7rem; color: var(--text-muted); }
+    .stat-box .value { font-size: 1.15rem; font-weight: 700; font-family: monospace; margin-top: 2px; }
+
+    /* Butonlar */
+    .btn {
+      min-height: 44px;
+      padding: 10px 16px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: filter 0.2s ease;
+    }
+    .btn:active { filter: brightness(1.2); }
+    .btn-running { background: var(--accent-red); color: white; width: 100%; margin-bottom: 10px; }
+    .btn-stopped { background: var(--accent-green); color: black; width: 100%; margin-bottom: 10px; }
+    .btn-export { 
+      background: #1e293b; 
+      color: var(--accent-blue); 
+      border: 1px solid var(--accent-blue); 
+      min-height: 36px;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>WWTP / ETP SCADA Simülatörü</h1>
+    <div class="header-actions">
+      <button class="btn btn-export" onclick="exportCSV()">CSV Raporu</button>
+      <div id="statusBadge" class="badge badge-online">Çevrimiçi</div>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <!-- Proses Şeması -->
+    <div class="canvas-box">
+      <canvas id="simCanvas" width="1200" height="430"></canvas>
+    </div>
+
+    <!-- Trend Osiloskop Grafiği -->
+    <div class="trend-card">
+      <div class="trend-header">
+        <span class="trend-title">Süreç Trend Kaydı (Son 180s)</span>
+        <div class="trend-legends">
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--accent-purple);"></div>
+            <span>pH (5-9)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--accent-yellow);"></div>
+            <span>Biyogaz (0-150 Nm³/h)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background: var(--accent-green);"></div>
+            <span>Biyokütle (%0-100)</span>
+          </div>
+        </div>
+      </div>
+      <div class="canvas-box">
+        <canvas id="trendCanvas" width="1200" height="190"></canvas>
+      </div>
+    </div>
+
+    <!-- Kontrol ve Telemetri Paneli -->
+    <div class="dashboard">
+      <div class="card">
+        <h2>Aktif Proses Kontrolleri</h2>
+        <button id="toggleBtn" class="btn btn-running" onclick="toggleSystem()">TESİSİ DURDUR (TRIP)</button>
+        
+        <div class="control-row">
+          <label>Giriş Debisi: <span class="val" id="flowVal">240 m³/h</span></label>
+          <input type="range" id="flowInput" min="50" max="450" value="240" oninput="updateParams()">
+        </div>
+
+        <div class="control-row">
+          <label>Koagülant (FeCl₃): <span class="val" id="coagVal">60 ppm</span></label>
+          <input type="range" id="coagInput" min="0" max="150" value="60" oninput="updateParams()">
+        </div>
+
+        <div class="control-row">
+          <label>Anyonik Polimer: <span class="val" id="polyVal">2.0 ppm</span></label>
+          <input type="range" id="polyInput" min="0" max="6" step="0.1" value="2.0" oninput="updateParams()">
+        </div>
+
+        <div class="control-row">
+          <label>Reaktör Sıcaklığı: <span class="val" id="tempVal">36.5 °C</span></label>
+          <input type="range" id="tempInput" min="15" max="48" step="0.5" value="36.5" oninput="updateParams()">
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Canlı Telemetri & Analizörler</h2>
+        <div class="telemetry-grid">
+          <div class="stat-box">
+            <span class="title">AIT-301 (pH)</span>
+            <span class="value" id="dispPH" style="color: var(--accent-purple);">7.15</span>
+          </div>
+          <div class="stat-box">
+            <span class="title">Biyokütle Canlılığı</span>
+            <span class="value" id="dispHealth" style="color: var(--accent-green);">%94</span>
+          </div>
+          <div class="stat-box">
+            <span class="title">FIT-401 (Biyogaz)</span>
+            <span class="value" id="dispBiogas" style="color: var(--accent-yellow);">86.4 Nm³/h</span>
+          </div>
+          <div class="stat-box">
+            <span class="title">KOİ Giderim Verimi</span>
+            <span class="value" id="dispCOD" style="color: var(--accent-blue);">%91.8</span>
+          </div>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.74rem; color: var(--text-muted); line-height: 1.4;">
+          * <strong>Dokunmatik İpucu:</strong> Sürgüleri parmağınızla sağa/sola kaydırarak tesis reaksiyonlarını eşzamanlı izleyebilirsiniz.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const simCanvas = document.getElementById("simCanvas");
+    const sCtx = simCanvas.getContext("2d");
+
+    const trendCanvas = document.getElementById("trendCanvas");
+    const tCtx = trendCanvas.getContext("2d");
+
+    // Sistem Değişkenleri
+    let isRunning = true;
+    let flowRate = 240;      // m³/h
+    let coagulant = 60;      // ppm
+    let polymer = 2.0;       // ppm
+    let temperature = 36.5;  // °C
+
+    let bacteriaHealth = 94; // %
+    let phLevel = 7.15;
+    let biogasRate = 86.4;   // Nm³/h
+    let codRemoval = 91.8;   // %
+
+    // Parçacık Listeleri
+    const waterParticles = [];
+    const chemicalDrops = [];
+    const flocs = [];
+    const biogasBubbles = [];
+    const flameParticles = [];
+    let mixerAngle = 0;
+
+    // SCADA Trend Belleği
+    const MAX_TREND_POINTS = 180;
+    const trendHistory = [];
+    let logCounter = 0;
+
+    function toggleSystem() {
+      isRunning = !isRunning;
+      const btn = document.getElementById("toggleBtn");
+      const badge = document.getElementById("statusBadge");
+      if (isRunning) {
+        btn.textContent = "TESİSİ DURDUR (TRIP)";
+        btn.className = "btn btn-running";
+        badge.textContent = "Çevrimiçi";
+        badge.className = "badge badge-online";
+      } else {
+        btn.textContent = "TESİSİ BAŞLAT";
+        btn.className = "btn btn-stopped";
+        badge.textContent = "Durduruldu";
+        badge.className = "badge badge-offline";
+      }
+    }
+
+    function updateParams() {
+      flowRate = parseFloat(document.getElementById("flowInput").value);
+      coagulant = parseFloat(document.getElementById("coagInput").value);
+      polymer = parseFloat(document.getElementById("polyInput").value);
+      temperature = parseFloat(document.getElementById("tempInput").value);
+
+      document.getElementById("flowVal").textContent = flowRate + " m³/h";
+      document.getElementById("coagVal").textContent = coagulant + " ppm";
+      document.getElementById("polyVal").textContent = polymer.toFixed(1) + " ppm";
+      document.getElementById("tempVal").textContent = temperature.toFixed(1) + " °C";
+    }
+
+    function computeProcess() {
+      if (!isRunning) {
+        biogasRate = Math.max(0, biogasRate * 0.985);
+      } else {
+        const acidShift = (coagulant - 50) * 0.015;
+        phLevel = 7.3 - acidShift;
+
+        let phPenalty = Math.abs(phLevel - 7.1) > 0.3 ? Math.pow(Math.abs(phLevel - 7.1) - 0.3, 1.8) * 60 : 0;
+        let tempPenalty = Math.abs(temperature - 36.5) > 2 ? Math.abs(temperature - 36.5) * 4.5 : 0;
+        
+        bacteriaHealth = Math.max(5, Math.min(99, 100 - phPenalty - tempPenalty));
+
+        const maxGas = (flowRate / 240) * 90;
+        const targetBiogas = maxGas * (bacteriaHealth / 100);
+        biogasRate += (targetBiogas - biogasRate) * 0.05;
+
+        const coagEfficiency = Math.max(0, 1 - Math.abs(coagulant - 60) / 80);
+        codRemoval = Math.min(96, 40 + (coagEfficiency * 25) + (bacteriaHealth * 0.32));
+      }
+
+      document.getElementById("dispPH").textContent = phLevel.toFixed(2);
+      document.getElementById("dispHealth").textContent = "%" + bacteriaHealth.toFixed(0);
+      document.getElementById("dispHealth").style.color = bacteriaHealth > 75 ? "var(--accent-green)" : (bacteriaHealth > 45 ? "var(--accent-yellow)" : "var(--accent-red)");
+      document.getElementById("dispBiogas").textContent = biogasRate.toFixed(1) + " Nm³/h";
+      document.getElementById("dispCOD").textContent = "%" + codRemoval.toFixed(1);
+
+      logCounter++;
+      if (logCounter % 10 === 0) {
+        trendHistory.push({
+          time: new Date().toLocaleTimeString(),
+          ph: phLevel,
+          biogas: biogasRate,
+          bacteria: bacteriaHealth,
+          flow: flowRate
+        });
+        if (trendHistory.length > MAX_TREND_POINTS) {
+          trendHistory.shift();
+        }
+      }
+    }
+
+    function renderTrends() {
+      const w = trendCanvas.width;
+      const h = trendCanvas.height;
+      tCtx.clearRect(0, 0, w, h);
+
+      // Izgara
+      tCtx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+      tCtx.lineWidth = 1;
+      for (let y = 20; y < h; y += 35) {
+        tCtx.beginPath();
+        tCtx.moveTo(0, y);
+        tCtx.lineTo(w, y);
+        tCtx.stroke();
+      }
+      for (let x = 0; x < w; x += 100) {
+        tCtx.beginPath();
+        tCtx.moveTo(x, 0);
+        tCtx.lineTo(x, h);
+        tCtx.stroke();
+      }
+
+      if (trendHistory.length < 2) return;
+      const stepX = w / (MAX_TREND_POINTS - 1);
+
+      function plotChannel(extractVal, minVal, maxVal, color) {
+        tCtx.strokeStyle = color;
+        tCtx.lineWidth = 2.5;
+        tCtx.beginPath();
+        for (let i = 0; i < trendHistory.length; i++) {
+          const val = extractVal(trendHistory[i]);
+          const norm = Math.max(0, Math.min(1, (val - minVal) / (maxVal - minVal)));
+          const x = i * stepX;
+          const y = h - (norm * (h - 26) + 13);
+          if (i === 0) tCtx.moveTo(x, y);
+          else tCtx.lineTo(x, y);
+        }
+        tCtx.stroke();
+      }
+
+      plotChannel(d => d.ph, 5.0, 9.0, "#c084fc");
+      plotChannel(d => d.biogas, 0, 150, "#f59e0b");
+      plotChannel(d => d.bacteria, 0, 100, "#22c55e");
+    }
+
+    function renderProcess() {
+      sCtx.clearRect(0, 0, simCanvas.width, simCanvas.height);
+      const speed = isRunning ? flowRate / 200 : 0;
+
+      // Tanklar
+      drawTank(40, 120, 160, 240, "Dengeleme Havuzu (T-101)");
+      drawTank(270, 150, 150, 210, "Kimyasal Karışım (T-201)");
+      drawTank(490, 100, 220, 260, "UASB Reaktör (R-301)");
+      drawTank(780, 180, 150, 180, "Son Çökeltim (T-302)");
+      drawFlare(1050, 70, 40, 290);
+
+      // Borular
+      drawPipe(0, 200, 40, 200);
+      drawPipe(200, 240, 270, 240);
+      drawPipe(420, 270, 490, 270);
+      drawPipe(710, 220, 780, 220);
+      drawPipe(930, 260, 1000, 260);
+
+      // Gaz Boru Hattı
+      drawGasPipe(600, 100, 600, 50, 1070, 50, 1070, 70);
+
+      // Sıvılar
+      drawLiquid(42, 160, 156, 198, "rgba(87, 83, 78, 0.7)");
+      drawLiquid(272, 180, 146, 178, "rgba(71, 85, 105, 0.7)");
+      const uColor = bacteriaHealth > 70 ? "rgba(13, 148, 136, 0.8)" : "rgba(161, 98, 7, 0.8)";
+      drawLiquid(492, 140, 216, 218, uColor);
+      const cColor = codRemoval > 85 ? "rgba(56, 189, 248, 0.65)" : "rgba(148, 163, 184, 0.65)";
+      drawLiquid(782, 210, 146, 148, cColor);
+
+      // Karıştırıcı & Dozaj
+      sCtx.fillStyle = "#334155";
+      sCtx.fillRect(320, 100, 50, 30);
+      sCtx.fillStyle = "#94a3b8";
+      sCtx.font = "10px monospace";
+      sCtx.fillText("DOZAJ", 328, 118);
+
+      if (isRunning && coagulant > 0 && Math.random() < coagulant / 60) {
+        chemicalDrops.push({ x: 345 + (Math.random() * 4 - 2), y: 130, vy: 2 + Math.random() * 2 });
+      }
+
+      mixerAngle += isRunning ? 0.08 : 0;
+      sCtx.strokeStyle = "#cbd5e1";
+      sCtx.lineWidth = 3;
+      sCtx.beginPath();
+      sCtx.moveTo(345, 130);
+      sCtx.lineTo(345, 250);
+      sCtx.stroke();
+      sCtx.save();
+      sCtx.translate(345, 250);
+      sCtx.rotate(mixerAngle);
+      sCtx.fillStyle = "#94a3b8";
+      sCtx.fillRect(-22, -4, 44, 8);
+      sCtx.restore();
+
+      // Floklar
+      if (isRunning && coagulant > 15 && flocs.length < 40) {
+        flocs.push({
+          x: 280 + Math.random() * 130,
+          y: 190 + Math.random() * 60,
+          size: Math.min(5, 1 + polymer * 0.8),
+          vy: 0.4 + (coagulant / 100)
+        });
+      }
+
+      // UASB Bakteri Çamur Yatağı
+      const sludgePulse = Math.sin(Date.now() * 0.004) * 3;
+      sCtx.fillStyle = bacteriaHealth > 70 ? "#064e3b" : "#451a03";
+      sCtx.beginPath();
+      sCtx.ellipse(600, 335, 95, 20 + sludgePulse, 0, 0, Math.PI * 2);
+      sCtx.fill();
+
+      // Biyogaz Kabarcıkları
+      if (isRunning && biogasRate > 5 && Math.random() < (biogasRate / 100)) {
+        biogasBubbles.push({
+          x: 520 + Math.random() * 160,
+          y: 320,
+          radius: 2 + Math.random() * 3,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: 1.5 + Math.random() * 2
+        });
+      }
+
+      // Gaz Ayırıcı Kubbe
+      sCtx.fillStyle = "#334155";
+      sCtx.beginPath();
+      sCtx.moveTo(530, 170);
+      sCtx.lineTo(600, 120);
+      sCtx.lineTo(670, 170);
+      sCtx.closePath();
+      sCtx.fill();
+
+      // Meşale Alevi
+      if (biogasRate > 2) {
+        const flameCount = isRunning ? Math.floor(biogasRate / 16) + 2 : 1;
+        for (let i = 0; i < flameCount; i++) {
+          flameParticles.push({
+            x: 1070 + (Math.random() * 8 - 4),
+            y: 70,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: -(2 + (biogasRate / 35) * (1.5 + Math.random() * 2)),
+            radius: 3 + Math.random() * 6,
+            life: 1,
+            decay: 0.03 + Math.random() * 0.04
+          });
+        }
+      }
+
+      updateParticles(speed);
+    }
+
+    function updateParticles(speed) {
+      if (speed > 0 && Math.random() < 0.35) waterParticles.push({ x: 0, y: 200 });
+      sCtx.fillStyle = "#60a5fa";
+      for (let i = waterParticles.length - 1; i >= 0; i--) {
+        const wp = waterParticles[i];
+        wp.x += 1.6 * speed;
+        sCtx.beginPath();
+        sCtx.arc(wp.x, wp.y, 2, 0, Math.PI * 2);
+        sCtx.fill();
+        if (wp.x > 1000) waterParticles.splice(i, 1);
+      }
+
+      sCtx.fillStyle = "#f59e0b";
+      for (let i = chemicalDrops.length - 1; i >= 0; i--) {
+        const d = chemicalDrops[i];
+        d.y += d.vy;
+        sCtx.beginPath();
+        sCtx.arc(d.x, d.y, 2.5, 0, Math.PI * 2);
+        sCtx.fill();
+        if (d.y > 180) chemicalDrops.splice(i, 1);
+      }
+
+      sCtx.fillStyle = "#78716c";
+      for (let i = flocs.length - 1; i >= 0; i--) {
+        const f = flocs[i];
+        f.y += f.vy;
+        sCtx.beginPath();
+       
